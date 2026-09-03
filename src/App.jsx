@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard/Dashboard';
 import ExpenseList from './components/Expenses/ExpenseList';
 import BudgetManager from './components/Budgets/BudgetManager';
 import CategoryManager from './components/Categories/CategoryManager';
+import Settings from './components/Settings/Settings';
 import Navbar from './components/Layout/Navbar';
 import PINLock from './components/Common/PINLock';
 
@@ -50,6 +51,7 @@ function App() {
           <Route path="/expenses" element={token ? <ExpenseList /> : <Navigate to="/login" />} />
           <Route path="/budgets" element={token ? <BudgetManager /> : <Navigate to="/login" />} />
           <Route path="/categories" element={token ? <CategoryManager /> : <Navigate to="/login" />} />
+          <Route path="/settings" element={token ? <Settings /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

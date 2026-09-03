@@ -19,6 +19,7 @@ const Navbar = () => {
     { name: 'Expenses', path: '/expenses' },
     { name: 'Budgets', path: '/budgets' },
     { name: 'Categories', path: '/categories' },
+    { name: 'Settings', path: '/settings' },
   ];
 
   return (
