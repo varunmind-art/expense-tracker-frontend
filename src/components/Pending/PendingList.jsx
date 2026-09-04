@@ -8,6 +8,8 @@ const PendingList = () => {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editData, setEditData] = useState({});
+  // ✅ State to store selected category for each pending item (display mode)
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState({});
 
   useEffect(() => {
     fetchData();
@@ -21,6 +23,8 @@ const PendingList = () => {
       ]);
       setPending(pendingRes.data);
       setCategories(catRes.data);
+      // Reset selections when data loads
+      setSelectedCategoryIds({});
     } catch (error) {
       toast.error('Failed to load pending imports');
     } finally {
@@ -29,8 +33,14 @@ const PendingList = () => {
   };
 
   const handleConfirm = async (id, categoryId) => {
+    // Use the selected category from dropdown if available, otherwise fallback
+    const finalCategoryId = selectedCategoryIds[id] || categoryId || null;
+    if (!finalCategoryId) {
+      toast.error('Please select a category before confirming.');
+      return;
+    }
     try {
-      await api.post(`/pending/${id}/confirm`, { categoryId });
+      await api.post(`/pending/${id}/confirm`, { categoryId: finalCategoryId });
       toast.success('Expense created!');
       fetchData();
     } catch (error) {
@@ -71,6 +81,10 @@ const PendingList = () => {
     }
   };
 
+  const handleCategoryChange = (itemId, categoryId) => {
+    setSelectedCategoryIds(prev => ({ ...prev, [itemId]: categoryId }));
+  };
+
   if (loading) return <div className="text-center py-10">Loading...</div>;
 
   return (
@@ -81,12 +95,16 @@ const PendingList = () => {
       ) : (
         <div className="space-y-4">
           {pending.map(item => {
-            // ✅ Parse amount safely
             const amount = parseFloat(item.amount || 0);
+            // Determine which categoryId to show in dropdown
+            const selectedId = editingId === item.id
+              ? editData.categoryId
+              : (selectedCategoryIds[item.id] || item.categoryId || '');
+
             return (
               <div key={item.id} className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
                 {editingId === item.id ? (
-                  // Edit mode
+                  // --- Edit Mode ---
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <input
@@ -139,17 +157,29 @@ const PendingList = () => {
                     </div>
                   </div>
                 ) : (
-                  // Display mode
-                  <div className="flex flex-wrap items-center justify-between">
+                  // --- Display Mode with Category Dropdown ---
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="font-semibold text-gray-800 dark:text-white">{item.merchant}</p>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
                         {amount.toFixed(2)} · {new Date(item.date).toLocaleDateString()}
                       </p>
                       {item.note && <p className="text-sm text-gray-500">{item.note}</p>}
-                      {item.category && <span className="text-xs bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">{item.category.name}</span>}
                     </div>
-                    <div className="flex space-x-2 mt-2 md:mt-0">
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* ✅ Category dropdown */}
+                      <select
+                        value={selectedId}
+                        onChange={(e) => handleCategoryChange(item.id, e.target.value)}
+                        className="px-2 py-1 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                      >
+                        <option value="">Category</option>
+                        {categories.map(c => (
+                          <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                        ))}
+                      </select>
+
                       <button
                         onClick={() => handleEdit(item)}
                         className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
@@ -164,7 +194,10 @@ const PendingList = () => {
                       </button>
                       <button
                         onClick={() => handleConfirm(item.id, item.categoryId)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                        className={`bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm ${
+                          !selectedId ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        disabled={!selectedId}
                       >
                         Confirm
                       </button>
