@@ -12,6 +12,7 @@ import CategoryManager from './components/Categories/CategoryManager';
 import Settings from './components/Settings/Settings';
 import Navbar from './components/Layout/Navbar';
 import PINLock from './components/Common/PINLock';
+import PendingList from './components/Pending/PendingList';
 
 function App() {
   const { token, loading } = useAuth();
@@ -52,6 +53,7 @@ function App() {
           <Route path="/budgets" element={token ? <BudgetManager /> : <Navigate to="/login" />} />
           <Route path="/categories" element={token ? <CategoryManager /> : <Navigate to="/login" />} />
           <Route path="/settings" element={token ? <Settings /> : <Navigate to="/login" />} />
+          <Route path="/pending" element={token ? <PendingList /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>
