@@ -5,19 +5,17 @@ import toast from 'react-hot-toast';
 const GmailIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // Check if Gmail is already connected when component loads
   useEffect(() => {
     checkGmailStatus();
   }, []);
 
   const checkGmailStatus = async () => {
     try {
-      // You'll need to create this endpoint on your backend
       const res = await api.get('/auth/gmail/status');
       setIsConnected(res.data.connected);
     } catch (error) {
-      // If endpoint doesn't exist yet, just default to false
       setIsConnected(false);
     }
   };
@@ -25,11 +23,9 @@ const GmailIntegration = () => {
   const handleConnect = async () => {
     setIsLoading(true);
     try {
-      // 1. Get the auth URL from your backend
       const res = await api.get('/auth/gmail');
       const { authUrl } = res.data;
 
-      // 2. Open the Google OAuth consent screen in a new window
       const width = 500;
       const height = 600;
       const left = window.screenX + (window.outerWidth - width) / 2;
@@ -40,20 +36,31 @@ const GmailIntegration = () => {
         `width=${width},height=${height},left=${left},top=${top}`
       );
 
-      // 3. Poll the popup window to detect when it closes
       const pollTimer = setInterval(() => {
         if (popup.closed) {
           clearInterval(pollTimer);
-          // Check if connection was successful
           checkGmailStatus();
           setIsLoading(false);
           toast.success('Gmail connected successfully!');
         }
       }, 1000);
-
     } catch (error) {
       toast.error('Failed to initiate Gmail connection.');
       setIsLoading(false);
+    }
+  };
+
+  // ✅ New function to manually trigger sync
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await api.post('/gmail/sync');
+      toast.success(res.data.message || 'Sync completed!');
+      // Optional: refresh the page or check expenses
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Sync failed.');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -66,9 +73,21 @@ const GmailIntegration = () => {
         Connect your Gmail account to automatically import receipts and create expenses.
       </p>
       {isConnected ? (
-        <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
-          <span>✅</span>
-          <span>Gmail is connected</span>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center space-x-2 text-green-600 dark:text-green-400">
+            <span>✅</span>
+            <span>Gmail is connected</span>
+          </div>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition disabled:opacity-50"
+          >
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
+          </button>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Auto-sync runs every 6 hours.
+          </p>
         </div>
       ) : (
         <button
