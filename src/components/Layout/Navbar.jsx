@@ -17,6 +17,7 @@ const Navbar = () => {
   const navLinks = [
     { name: 'Dashboard', path: '/' },
     { name: 'Expenses', path: '/expenses' },
+    { name: 'Income', path: '/income' },
     { name: 'Budgets', path: '/budgets' },
     { name: 'Categories', path: '/categories' },
     { name: 'Pending', path: '/pending' },
