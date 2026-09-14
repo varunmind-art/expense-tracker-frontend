@@ -11,6 +11,9 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
     type: 'EXPENSE',
   });
 
+  // Get selected category object
+  const selectedCategory = categories.find((c) => c.id === formData.categoryId);
+
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -24,13 +27,15 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
         type: initialData.type || 'EXPENSE',
       });
     } else {
+      const firstCat = categories[0];
       setFormData({
         amount: '',
         date: new Date().toISOString().split('T')[0],
         note: '',
-        categoryId: categories.length > 0 ? categories[0].id : '',
+        categoryId: firstCat ? firstCat.id : '',
         receiptUrl: '',
-        type: 'EXPENSE',
+        // ⭐ Auto-set from category type
+        type: firstCat?.type || 'EXPENSE',
       });
     }
   }, [initialData, categories]);
@@ -38,6 +43,17 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // ⭐ When the category changes, auto-set the type
+  const handleCategoryChange = (e) => {
+    const newCategoryId = e.target.value;
+    const cat = categories.find((c) => c.id === newCategoryId);
+    setFormData((prev) => ({
+      ...prev,
+      categoryId: newCategoryId,
+      type: cat?.type || 'EXPENSE',
+    }));
   };
 
   const handleSubmit = (e) => {
@@ -56,6 +72,8 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
   if (!isOpen) return null;
 
   const isSavings = formData.type === 'SAVINGS';
+  const categoryType = selectedCategory?.type || 'EXPENSE';
+  const typeOverridden = categoryType !== formData.type;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -64,8 +82,8 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
           {initialData ? 'Edit Entry' : isSavings ? 'Add Savings' : 'Add Expense'}
         </h2>
 
-        {/* Type Toggle */}
-        <div className="flex rounded-lg overflow-hidden border dark:border-gray-600 mb-4">
+        {/* Type Toggle (optional override) */}
+        <div className="flex rounded-lg overflow-hidden border dark:border-gray-600 mb-2">
           <button
             type="button"
             onClick={() => setFormData((p) => ({ ...p, type: 'EXPENSE' }))}
@@ -89,6 +107,20 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
             🏦 Savings
           </button>
         </div>
+
+        {/* Category type hint */}
+        {selectedCategory && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            Category type: <span className={categoryType === 'SAVINGS' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-blue-600 dark:text-blue-400 font-medium'}>
+              {categoryType === 'SAVINGS' ? '🏦 Savings' : '💰 Expense'}
+            </span>
+            {typeOverridden && (
+              <span className="ml-2 text-amber-600 dark:text-amber-400">
+                (overridden)
+              </span>
+            )}
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
@@ -122,15 +154,24 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
             <select
               name="categoryId"
               value={formData.categoryId}
-              onChange={handleChange}
+              onChange={handleCategoryChange}
               className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             >
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.icon} {cat.name}
-                </option>
-              ))}
+              <optgroup label="💰 Expense Categories">
+                {categories.filter((c) => (c.type || 'EXPENSE') === 'EXPENSE').map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="🏦 Savings Categories">
+                {categories.filter((c) => c.type === 'SAVINGS').map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.icon} {cat.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
           <div className="mb-4">
