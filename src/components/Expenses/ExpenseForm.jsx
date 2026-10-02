@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../api/client';
 import toast from 'react-hot-toast';
 
 const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoading }) => {
@@ -6,13 +7,28 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
     amount: '',
     date: new Date().toISOString().split('T')[0],
     note: '',
+    merchant: '',
     categoryId: '',
     receiptUrl: '',
     type: 'EXPENSE',
   });
 
-  // Get selected category object
+  // ⭐ Merchant autocomplete suggestions
+  const [merchantSuggestions, setMerchantSuggestions] = useState([]);
+
   const selectedCategory = categories.find((c) => c.id === formData.categoryId);
+
+  // Load merchant suggestions when the form opens
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    api.get('/merchants')
+      .then((res) => {
+        if (!cancelled) setMerchantSuggestions(res.data || []);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialData) {
@@ -22,6 +38,7 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
           ? new Date(initialData.date).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0],
         note: initialData.note || '',
+        merchant: initialData.merchant || '',
         categoryId: initialData.categoryId || '',
         receiptUrl: initialData.receiptUrl || '',
         type: initialData.type || 'EXPENSE',
@@ -32,9 +49,9 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
         amount: '',
         date: new Date().toISOString().split('T')[0],
         note: '',
+        merchant: '',
         categoryId: firstCat ? firstCat.id : '',
         receiptUrl: '',
-        // ⭐ Auto-set from category type
         type: firstCat?.type || 'EXPENSE',
       });
     }
@@ -45,7 +62,6 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ⭐ When the category changes, auto-set the type
   const handleCategoryChange = (e) => {
     const newCategoryId = e.target.value;
     const cat = categories.find((c) => c.id === newCategoryId);
@@ -76,13 +92,13 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
   const typeOverridden = categoryType !== formData.type;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 my-8">
         <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">
           {initialData ? 'Edit Entry' : isSavings ? 'Add Savings' : 'Add Expense'}
         </h2>
 
-        {/* Type Toggle (optional override) */}
+        {/* Type Toggle */}
         <div className="flex rounded-lg overflow-hidden border dark:border-gray-600 mb-2">
           <button
             type="button"
@@ -108,17 +124,13 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
           </button>
         </div>
 
-        {/* Category type hint */}
         {selectedCategory && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Category type: <span className={categoryType === 'SAVINGS' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-blue-600 dark:text-blue-400 font-medium'}>
+            Category type:{' '}
+            <span className={categoryType === 'SAVINGS' ? 'text-green-600 dark:text-green-400 font-medium' : 'text-blue-600 dark:text-blue-400 font-medium'}>
               {categoryType === 'SAVINGS' ? '🏦 Savings' : '💰 Expense'}
             </span>
-            {typeOverridden && (
-              <span className="ml-2 text-amber-600 dark:text-amber-400">
-                (overridden)
-              </span>
-            )}
+            {typeOverridden && <span className="ml-2 text-amber-600 dark:text-amber-400">(overridden)</span>}
           </p>
         )}
 
@@ -138,6 +150,7 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
               required
             />
           </div>
+
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">Date</label>
             <input
@@ -149,6 +162,7 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
               required
             />
           </div>
+
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">Category</label>
             <select
@@ -160,20 +174,44 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
             >
               <optgroup label="💰 Expense Categories">
                 {categories.filter((c) => (c.type || 'EXPENSE') === 'EXPENSE').map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.name}
-                  </option>
+                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
                 ))}
               </optgroup>
               <optgroup label="🏦 Savings Categories">
                 {categories.filter((c) => c.type === 'SAVINGS').map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.name}
-                  </option>
+                  <option key={cat.id} value={cat.id}>{cat.icon} {cat.name}</option>
                 ))}
               </optgroup>
             </select>
           </div>
+
+          {/* ⭐ Merchant with autocomplete */}
+          <div className="mb-4">
+            <label className="block text-gray-700 dark:text-gray-300 mb-2">
+              Merchant / Shop / Website <span className="text-xs text-gray-500">(optional)</span>
+            </label>
+            <input
+              type="text"
+              name="merchant"
+              list="merchant-suggestions"
+              value={formData.merchant}
+              onChange={handleChange}
+              placeholder="e.g., Amazon, Swiggy, BigBasket"
+              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              autoComplete="off"
+            />
+            <datalist id="merchant-suggestions">
+              {merchantSuggestions.map((m) => (
+                <option key={m.name} value={m.name} />
+              ))}
+            </datalist>
+            {merchantSuggestions.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {merchantSuggestions.length} previously used merchant{merchantSuggestions.length === 1 ? '' : 's'} available
+              </p>
+            )}
+          </div>
+
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">Note (optional)</label>
             <input
@@ -185,6 +223,7 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
               className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
           <div className="flex justify-end space-x-3">
             <button
               type="button"

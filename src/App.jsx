@@ -15,6 +15,7 @@ import PINLock from './components/Common/PINLock';
 import PendingList from './components/Pending/PendingList';
 import Income from './components/Income/Income';
 import RecurringRules from './components/Recurring/RecurringRules';
+import MerchantInsights from './components/Merchants/MerchantInsights';
 
 function App() {
   const { token, loading } = useAuth();
@@ -58,6 +59,7 @@ function App() {
           <Route path="/pending" element={token ? <PendingList /> : <Navigate to="/login" />} />
           <Route path="/income" element={token ? <Income /> : <Navigate to="/login" />} />
           <Route path="/recurring" element={token ? <RecurringRules /> : <Navigate to="/login" />} />
+          <Route path="/merchants" element={token ? <MerchantInsights /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

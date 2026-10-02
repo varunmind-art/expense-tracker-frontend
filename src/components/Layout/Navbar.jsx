@@ -19,6 +19,7 @@ const Navbar = () => {
     { name: 'Expenses', path: '/expenses' },
     { name: 'Income', path: '/income' },
     { name: 'Recurring', path: '/recurring' },
+    { name: 'Merchants', path: '/merchants' },
     { name: 'Budgets', path: '/budgets' },
     { name: 'Categories', path: '/categories' },
     { name: 'Pending', path: '/pending' },

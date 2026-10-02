@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import ExpenseChart from './ExpenseChart';
 import TrendChart from './TrendChart';
 import TopCategories from './TopCategories';
+import TopMerchants from './TopMerchants';
 import BudgetProgress from './BudgetProgress';
 import MonthlyFlowCard from './MonthlyFlowCard';
 import SavingsRateRing from './SavingsRateRing';
@@ -21,10 +22,11 @@ const Dashboard = () => {
 
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     fetchData();
-  }, [filter]);
+  }, [filter, refreshKey]);
 
   const fetchData = async () => {
     try {
@@ -73,7 +75,7 @@ const Dashboard = () => {
       await api.post('/expenses', data);
       toast.success(data.type === 'SAVINGS' ? 'Savings logged!' : 'Expense added!');
       setShowForm(false);
-      await fetchData();
+      setRefreshKey((k) => k + 1); // forces refresh of dashboard + TopMerchants
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to add');
     } finally {
@@ -108,7 +110,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Monthly Flow + Savings Rate */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <MonthlyFlowCard summary={summary} />
@@ -116,7 +117,6 @@ const Dashboard = () => {
         <SavingsRateRing summary={summary} />
       </div>
 
-      {/* Summary cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
           <p className="text-sm text-gray-500 dark:text-gray-400">Total Spent</p>
@@ -136,17 +136,21 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ExpenseChart expenses={expenses} />
         <TrendChart expenses={expenses} />
       </div>
+
+      {/* ⭐ NEW: Top Merchants alongside Top Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TopCategories expenses={expenses} />
+        <TopMerchants key={refreshKey} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BudgetProgress expenses={expenses} budgets={budgets} />
       </div>
 
-      {/* Savings breakdown */}
       <SavingsBreakdown summary={summary} />
 
       <ExpenseForm

@@ -7,16 +7,17 @@ import { formatIndianCurrency } from '../../utils/helpers';
 const ExpenseList = () => {
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [merchantList, setMerchantList] = useState([]); // ⭐
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [filterMerchant, setFilterMerchant] = useState(''); // ⭐
   const [sortBy, setSortBy] = useState('date');
   const [sortOrder, setSortOrder] = useState('desc');
   const [showForm, setShowForm] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  // ⭐ NEW: filter tab
-  const [typeTab, setTypeTab] = useState('ALL'); // ALL | EXPENSE | SAVINGS
+  const [typeTab, setTypeTab] = useState('ALL');
 
   useEffect(() => {
     fetchData();
@@ -24,12 +25,14 @@ const ExpenseList = () => {
 
   const fetchData = async () => {
     try {
-      const [expRes, catRes] = await Promise.all([
+      const [expRes, catRes, merRes] = await Promise.all([
         api.get('/expenses'),
         api.get('/categories'),
+        api.get('/merchants'),
       ]);
       setExpenses(expRes.data);
       setCategories(catRes.data);
+      setMerchantList(merRes.data || []);
     } catch (error) {
       toast.error('Failed to load data');
     } finally {
@@ -60,6 +63,8 @@ const ExpenseList = () => {
         setExpenses([res.data, ...expenses]);
         toast.success(data.type === 'SAVINGS' ? 'Savings added!' : 'Expense added!');
       }
+      // Refresh merchant list
+      api.get('/merchants').then((r) => setMerchantList(r.data || []));
       setShowForm(false);
       setEditingExpense(null);
     } catch (error) {
@@ -89,9 +94,11 @@ const ExpenseList = () => {
     const matchType = typeTab === 'ALL' ? true : (e.type || 'EXPENSE') === typeTab;
     const matchSearch =
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
+      e.merchant?.toLowerCase().includes(search.toLowerCase()) || // ⭐
       e.category?.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = filterCategory ? e.categoryId === filterCategory : true;
-    return matchType && matchSearch && matchCategory;
+    const matchMerchant = filterMerchant ? e.merchant === filterMerchant : true; // ⭐
+    return matchType && matchSearch && matchCategory && matchMerchant;
   });
 
   const sorted = [...filtered].sort((a, b) => {
@@ -102,6 +109,9 @@ const ExpenseList = () => {
     } else if (sortBy === 'amount') {
       valA = parseFloat(a.amount || 0);
       valB = parseFloat(b.amount || 0);
+    } else if (sortBy === 'merchant') { // ⭐
+      valA = a.merchant || '';
+      valB = b.merchant || '';
     } else {
       valA = a.category?.name || '';
       valB = b.category?.name || '';
@@ -122,17 +132,13 @@ const ExpenseList = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Expenses & Savings</h1>
         <button
-          onClick={() => {
-            setEditingExpense(null);
-            setShowForm(true);
-          }}
+          onClick={() => { setEditingExpense(null); setShowForm(true); }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
         >
           + Add
         </button>
       </div>
 
-      {/* ⭐ NEW: Type filter tabs */}
       <div className="flex rounded-lg overflow-hidden border dark:border-gray-600 mb-4 w-fit">
         {[
           { key: 'ALL', label: 'All', color: 'bg-gray-700' },
@@ -157,7 +163,7 @@ const ExpenseList = () => {
       <div className="flex flex-wrap gap-4 mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
         <input
           type="text"
-          placeholder="Search notes or category..."
+          placeholder="Search notes, merchant, or category..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white flex-1 min-w-[200px]"
@@ -169,9 +175,18 @@ const ExpenseList = () => {
         >
           <option value="">All Categories</option>
           {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.icon} {c.name}
-            </option>
+            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+          ))}
+        </select>
+        {/* ⭐ Merchant filter */}
+        <select
+          value={filterMerchant}
+          onChange={(e) => setFilterMerchant(e.target.value)}
+          className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+        >
+          <option value="">All Merchants</option>
+          {merchantList.map((m) => (
+            <option key={m.name} value={m.name}>{m.name}</option>
           ))}
         </select>
         <select
@@ -182,6 +197,7 @@ const ExpenseList = () => {
           <option value="date">Sort by Date</option>
           <option value="amount">Sort by Amount</option>
           <option value="category">Sort by Category</option>
+          <option value="merchant">Sort by Merchant</option>
         </select>
         <button
           onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
@@ -197,27 +213,21 @@ const ExpenseList = () => {
         </button>
       </div>
 
-      {/* Totals strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow text-sm">
-          <span className="text-gray-500 dark:text-gray-400">Entries shown: </span>
+          <span className="text-gray-500 dark:text-gray-400">Entries: </span>
           <span className="font-semibold text-gray-800 dark:text-white">{sorted.length}</span>
         </div>
         <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow text-sm">
           <span className="text-gray-500 dark:text-gray-400">Total: </span>
-          <span className="font-semibold text-gray-800 dark:text-white">
-            {formatIndianCurrency(totalShown)}
-          </span>
+          <span className="font-semibold text-gray-800 dark:text-white">{formatIndianCurrency(totalShown)}</span>
         </div>
         <div className="bg-white dark:bg-gray-800 px-4 py-2 rounded-lg shadow text-sm">
           <span className="text-gray-500 dark:text-gray-400">Savings: </span>
-          <span className="font-semibold text-green-600 dark:text-green-400">
-            {formatIndianCurrency(savingsShown)}
-          </span>
+          <span className="font-semibold text-green-600 dark:text-green-400">{formatIndianCurrency(savingsShown)}</span>
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -226,6 +236,7 @@ const ExpenseList = () => {
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Date</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Type</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Category</th>
+                <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Merchant</th>
                 <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">Note</th>
                 <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700 dark:text-gray-300">Amount</th>
                 <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 dark:text-gray-300">Actions</th>
@@ -234,7 +245,7 @@ const ExpenseList = () => {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {sorted.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan="7" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No entries found
                   </td>
                 </tr>
@@ -262,21 +273,24 @@ const ExpenseList = () => {
                         {e.category?.icon} {e.category?.name}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                        {e.note || '-'}
+                        {e.merchant ? (
+                          <span className="inline-flex items-center gap-1">
+                            <span className="text-gray-400">🏪</span>
+                            <span>{e.merchant}</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
-                      <td
-                        className={`px-4 py-3 text-sm font-semibold text-right ${
-                          isSav ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-white'
-                        }`}
-                      >
+                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">{e.note || '-'}</td>
+                      <td className={`px-4 py-3 text-sm font-semibold text-right ${
+                        isSav ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-white'
+                      }`}>
                         {formatIndianCurrency(amount)}
                       </td>
                       <td className="px-4 py-3 text-center space-x-2">
                         <button
-                          onClick={() => {
-                            setEditingExpense(e);
-                            setShowForm(true);
-                          }}
+                          onClick={() => { setEditingExpense(e); setShowForm(true); }}
                           className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
                         >
                           Edit
@@ -299,10 +313,7 @@ const ExpenseList = () => {
 
       <ExpenseForm
         isOpen={showForm}
-        onClose={() => {
-          setShowForm(false);
-          setEditingExpense(null);
-        }}
+        onClose={() => { setShowForm(false); setEditingExpense(null); }}
         onSubmit={handleSubmit}
         initialData={editingExpense}
         categories={categories}
