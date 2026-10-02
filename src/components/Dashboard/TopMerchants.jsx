@@ -3,22 +3,30 @@ import api from '../../api/client';
 import { formatIndianCurrency } from '../../utils/helpers';
 
 const TrendIcon = ({ trend }) => {
-  if (trend === 'up') return <span className="text-red-500 text-xs" title="Increased vs last month">▲</span>;
-  if (trend === 'down') return <span className="text-green-500 text-xs" title="Decreased vs last month">▼</span>;
+  if (trend === 'up') return <span className="text-red-500 text-xs" title="Increased vs previous month">▲</span>;
+  if (trend === 'down') return <span className="text-green-500 text-xs" title="Decreased vs previous month">▼</span>;
   if (trend === 'new') return <span className="text-blue-500 text-xs" title="New this month">★</span>;
-  return <span className="text-gray-400 text-xs" title="Same as last month">–</span>;
+  return <span className="text-gray-400 text-xs" title="Same as previous month">–</span>;
 };
 
-const TopMerchants = () => {
+// month format: 'YYYY-MM' or null (means "current month")
+const TopMerchants = ({ month = null }) => {
   const [merchants, setMerchants] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get('/merchants/stats')
+    setLoading(true);
+    const params = month ? { month } : {};
+    api.get('/merchants/stats', { params })
       .then((res) => setMerchants((res.data?.merchants || []).slice(0, 5)))
-      .catch(() => {})
+      .catch(() => setMerchants([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [month]);
+
+  // Format month label for the title
+  const monthLabel = month
+    ? new Date(month + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    : 'This Month';
 
   if (loading) {
     return (
@@ -32,10 +40,10 @@ const TopMerchants = () => {
     return (
       <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
         <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-          Top Merchants (this month)
+          Top Merchants ({monthLabel})
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
-          No merchant data yet. Add a merchant to your next expense to see insights here.
+          No merchant data for {monthLabel}. Add a merchant to your next expense to see insights here.
         </p>
       </div>
     );
@@ -46,7 +54,7 @@ const TopMerchants = () => {
   return (
     <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
       <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4">
-        Top Merchants (this month)
+        Top Merchants ({monthLabel})
       </h3>
       <ul className="space-y-3">
         {merchants.map((m, idx) => {

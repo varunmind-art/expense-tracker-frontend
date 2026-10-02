@@ -19,10 +19,20 @@ const Dashboard = () => {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('this-month');
-
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Derived month string for child components that need it
+const summaryMonth = (() => {
+  const now = new Date();
+  if (filter === 'last-month') {
+    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  // 'this-week' and 'this-month' both default to current month
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+})();
 
   useEffect(() => {
     fetchData();
@@ -144,7 +154,7 @@ const Dashboard = () => {
       {/* ⭐ NEW: Top Merchants alongside Top Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TopCategories expenses={expenses} />
-        <TopMerchants key={refreshKey} />
+        <TopMerchants key={refreshKey} month={summaryMonth} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
