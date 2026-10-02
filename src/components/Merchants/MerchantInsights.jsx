@@ -11,6 +11,207 @@ const TrendBadge = ({ trend }) => {
   return <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300">— Flat</span>;
 };
 
+// ⭐ NEW: Manage Regular Merchants panel
+const ManageMerchantsPanel = () => {
+  const [merchants, setMerchants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [importing, setImporting] = useState(false);
+
+  const fetchMerchants = async () => {
+    try {
+      const res = await api.get('/merchant-list');
+      setMerchants(res.data || []);
+    } catch (err) {
+      toast.error('Failed to load merchants');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchMerchants(); }, []);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await api.post('/merchant-list', { name: newName.trim() });
+      setMerchants([res.data, ...merchants]);
+      setNewName('');
+      toast.success('Merchant added');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleToggleActive = async (m) => {
+    try {
+      const res = await api.put(`/merchant-list/${m.id}`, { isActive: !m.isActive });
+      setMerchants(merchants.map((x) => (x.id === m.id ? res.data : x)));
+    } catch (err) {
+      toast.error('Failed to update');
+    }
+  };
+
+  const handleSaveEdit = async (id) => {
+    if (!editName.trim()) return;
+    try {
+      const res = await api.put(`/merchant-list/${id}`, { name: editName.trim() });
+      setMerchants(merchants.map((x) => (x.id === id ? res.data : x)));
+      setEditingId(null);
+      toast.success('Renamed');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed');
+    }
+  };
+
+  const handleDelete = async (m) => {
+    if (!window.confirm(`Remove "${m.name}" from the list? Existing expenses will keep the merchant name.`)) return;
+    try {
+      await api.delete(`/merchant-list/${m.id}`);
+      setMerchants(merchants.filter((x) => x.id !== m.id));
+      toast.success('Removed');
+    } catch (err) {
+      toast.error('Delete failed');
+    }
+  };
+
+  const handleImportExisting = async () => {
+    if (!window.confirm('Import all merchant names already used in your expenses?')) return;
+    setImporting(true);
+    try {
+      const res = await api.post('/merchant-list/import-existing');
+      toast.success(`Imported ${res.data.added} new merchant${res.data.added === 1 ? '' : 's'}`);
+      await fetchMerchants();
+    } catch (err) {
+      toast.error('Import failed');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+            Manage Regular Merchants
+          </h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            These will appear as a dropdown when you add or edit an expense.
+          </p>
+        </div>
+        <button
+          onClick={handleImportExisting}
+          disabled={importing}
+          className="text-xs px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-200 dark:hover:bg-gray-600 transition disabled:opacity-50"
+        >
+          {importing ? 'Importing…' : '⬇ Import from existing expenses'}
+        </button>
+      </div>
+
+      {/* Add new */}
+      <form onSubmit={handleCreate} className="flex flex-wrap gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Add a new merchant…"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          className="flex-1 min-w-[200px] px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+        />
+        <button
+          type="submit"
+          disabled={submitting || !newName.trim()}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm disabled:opacity-50"
+        >
+          {submitting ? '…' : '+ Add'}
+        </button>
+      </form>
+
+      {/* List */}
+      {loading ? (
+        <div className="text-center py-4 text-gray-500 text-sm">Loading…</div>
+      ) : merchants.length === 0 ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+          No merchants yet. Add one above or import from existing expenses.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {merchants.map((m) => (
+            <div
+              key={m.id}
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${
+                m.isActive
+                  ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-800 dark:text-gray-200'
+                  : 'bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 line-through'
+              }`}
+            >
+              {editingId === m.id ? (
+                <>
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleSaveEdit(m.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    className="bg-transparent border-b border-blue-500 outline-none text-sm w-32"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => handleSaveEdit(m.id)}
+                    className="text-green-600 hover:text-green-700 text-xs font-medium"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="text-gray-400 hover:text-gray-600 text-xs"
+                  >
+                    ✕
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span>🏪 {m.name}</span>
+                  <button
+                    onClick={() => { setEditingId(m.id); setEditName(m.name); }}
+                    className="text-blue-500 hover:text-blue-700 text-xs"
+                    title="Rename"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={() => handleToggleActive(m)}
+                    className="text-amber-500 hover:text-amber-700 text-xs"
+                    title={m.isActive ? 'Deactivate' : 'Activate'}
+                  >
+                    {m.isActive ? '◐' : '○'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(m)}
+                    className="text-red-500 hover:text-red-700 text-xs"
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MerchantInsights = () => {
   const [merchants, setMerchants] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +265,9 @@ const MerchantInsights = () => {
           className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
         />
       </div>
+
+      {/* ⭐ NEW: Manage Merchants Panel */}
+      <ManageMerchantsPanel />
 
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -146,9 +350,7 @@ const MerchantInsights = () => {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                       {m.primaryCategory ? (
-                        <>
-                          {m.primaryCategory.icon} {m.primaryCategory.name}
-                        </>
+                        <>{m.primaryCategory.icon} {m.primaryCategory.name}</>
                       ) : (
                         <span className="text-gray-400">—</span>
                       )}

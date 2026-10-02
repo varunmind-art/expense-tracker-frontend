@@ -13,18 +13,20 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
     type: 'EXPENSE',
   });
 
-  // ⭐ Merchant autocomplete suggestions
-  const [merchantSuggestions, setMerchantSuggestions] = useState([]);
+  // ⭐ Managed merchant list
+  const [managedMerchants, setManagedMerchants] = useState([]);
+  const [isAddingNew, setIsAddingNew] = useState(false);
+  const [newMerchantName, setNewMerchantName] = useState('');
 
   const selectedCategory = categories.find((c) => c.id === formData.categoryId);
 
-  // Load merchant suggestions when the form opens
+  // Load managed merchants when form opens
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
-    api.get('/merchants')
+    api.get('/merchant-list')
       .then((res) => {
-        if (!cancelled) setMerchantSuggestions(res.data || []);
+        if (!cancelled) setManagedMerchants(res.data || []);
       })
       .catch(() => {});
     return () => { cancelled = true; };
@@ -55,7 +57,9 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
         type: firstCat?.type || 'EXPENSE',
       });
     }
-  }, [initialData, categories]);
+    setIsAddingNew(false);
+    setNewMerchantName('');
+  }, [initialData, categories, isOpen]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,8 +76,38 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
     }));
   };
 
+  // Merchant select handler
+  const handleMerchantSelect = (e) => {
+    const value = e.target.value;
+    if (value === '__NEW__') {
+      setIsAddingNew(true);
+      setNewMerchantName('');
+      setFormData((prev) => ({ ...prev, merchant: '' }));
+    } else {
+      setIsAddingNew(false);
+      setFormData((prev) => ({ ...prev, merchant: value }));
+    }
+  };
+
+  const handleConfirmNewMerchant = () => {
+    const name = newMerchantName.trim();
+    if (!name) {
+      toast.error('Enter a merchant name');
+      return;
+    }
+    setFormData((prev) => ({ ...prev, merchant: name }));
+    setIsAddingNew(false);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // If a new merchant is being typed but not confirmed, use it anyway
+    let finalMerchant = formData.merchant;
+    if (isAddingNew && newMerchantName.trim()) {
+      finalMerchant = newMerchantName.trim();
+    }
+
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast.error('Please enter a valid amount.');
       return;
@@ -82,7 +116,7 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
       toast.error('Please select a category.');
       return;
     }
-    onSubmit({ ...formData, amount: parseFloat(formData.amount) });
+    onSubmit({ ...formData, merchant: finalMerchant, amount: parseFloat(formData.amount) });
   };
 
   if (!isOpen) return null;
@@ -90,6 +124,10 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
   const isSavings = formData.type === 'SAVINGS';
   const categoryType = selectedCategory?.type || 'EXPENSE';
   const typeOverridden = categoryType !== formData.type;
+
+  // Is current merchant not in the managed list?
+  const merchantNotInList =
+    formData.merchant && !managedMerchants.some((m) => m.name === formData.merchant);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -185,29 +223,69 @@ const ExpenseForm = ({ isOpen, onClose, onSubmit, initialData, categories, isLoa
             </select>
           </div>
 
-          {/* ⭐ Merchant with autocomplete */}
+          {/* ⭐ Merchant: managed dropdown + inline add-new */}
           <div className="mb-4">
             <label className="block text-gray-700 dark:text-gray-300 mb-2">
               Merchant / Shop / Website <span className="text-xs text-gray-500">(optional)</span>
             </label>
-            <input
-              type="text"
-              name="merchant"
-              list="merchant-suggestions"
-              value={formData.merchant}
-              onChange={handleChange}
-              placeholder="e.g., Amazon, Swiggy, BigBasket"
-              className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoComplete="off"
-            />
-            <datalist id="merchant-suggestions">
-              {merchantSuggestions.map((m) => (
-                <option key={m.name} value={m.name} />
-              ))}
-            </datalist>
-            {merchantSuggestions.length > 0 && (
+
+            {!isAddingNew ? (
+              <div className="space-y-2">
+                <select
+                  value={formData.merchant}
+                  onChange={handleMerchantSelect}
+                  className="w-full px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— No merchant —</option>
+                  {managedMerchants.filter((m) => m.isActive).map((m) => (
+                    <option key={m.id} value={m.name}>{m.name}</option>
+                  ))}
+                  {/* Show legacy merchant not in list yet */}
+                  {merchantNotInList && (
+                    <option value={formData.merchant}>{formData.merchant} (not in list)</option>
+                  )}
+                  <option value="__NEW__">+ Add new merchant…</option>
+                </select>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g., Amazon, Swiggy"
+                  value={newMerchantName}
+                  onChange={(e) => setNewMerchantName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleConfirmNewMerchant();
+                    }
+                  }}
+                  className="flex-1 px-4 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleConfirmNewMerchant}
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition text-sm"
+                >
+                  Use
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsAddingNew(false); setNewMerchantName(''); }}
+                  className="px-3 py-2 border rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {managedMerchants.length > 0 && !isAddingNew && (
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {merchantSuggestions.length} previously used merchant{merchantSuggestions.length === 1 ? '' : 's'} available
+                {managedMerchants.filter((m) => m.isActive).length} saved merchant{managedMerchants.length === 1 ? '' : 's'} ·{' '}
+                <a href="/merchants" className="text-blue-600 dark:text-blue-400 hover:underline">
+                  Manage
+                </a>
               </p>
             )}
           </div>
