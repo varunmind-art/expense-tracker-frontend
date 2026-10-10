@@ -5,6 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
 import ForgotPassword from './components/Auth/ForgotPassword';
+import ResetPassword from './components/Auth/ResetPassword';
 import Dashboard from './components/Dashboard/Dashboard';
 import ExpenseList from './components/Expenses/ExpenseList';
 import BudgetManager from './components/Budgets/BudgetManager';
@@ -51,6 +52,9 @@ function App() {
           <Route path="/login" element={!token ? <Login /> : <Navigate to="/" />} />
           <Route path="/register" element={!token ? <Register /> : <Navigate to="/" />} />
           <Route path="/forgot-password" element={!token ? <ForgotPassword /> : <Navigate to="/" />} />
+          {/* Renders regardless of session token: a logged-in user clicking the
+              emailed link must still be able to reset their password. */}
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={token ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/expenses" element={token ? <ExpenseList /> : <Navigate to="/login" />} />
           <Route path="/budgets" element={token ? <BudgetManager /> : <Navigate to="/login" />} />
