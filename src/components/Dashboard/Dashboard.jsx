@@ -11,6 +11,7 @@ import SavingsRateRing from './SavingsRateRing';
 import SavingsBreakdown from './SavingsBreakdown';
 import ExpenseForm from '../Expenses/ExpenseForm';
 import { formatIndianCurrency } from '../../utils/helpers';
+import { resolveWindow } from '../../utils/dateWindow.js';
 
 const Dashboard = () => {
   const [expenses, setExpenses] = useState([]);
@@ -23,16 +24,13 @@ const Dashboard = () => {
   const [submitting, setSubmitting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Derived month string for child components that need it
-const summaryMonth = (() => {
-  const now = new Date();
-  if (filter === 'last-month') {
-    const d = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  }
-  // 'this-week' and 'this-month' both default to current month
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-})();
+  // P0-6B: ONE window for the whole dashboard. Previously the month label was
+  // computed twice and differently (once from the filter's start date for
+  // /dashboard/summary, once from `now` for TopMerchants), so on a week that
+  // straddled a month boundary the cards, the merchant card and the charts could
+  // each show a different period. `dateWindow` is named to avoid shadowing the
+  // global `window` object.
+  const dateWindow = resolveWindow(filter);
 
   useEffect(() => {
     fetchData();
@@ -40,20 +38,17 @@ const summaryMonth = (() => {
 
   const fetchData = async () => {
     try {
-      const now = new Date();
-      let startDate = new Date();
-      if (filter === 'this-week') {
-        const day = now.getDay();
-        startDate.setDate(now.getDate() - day);
-        startDate.setHours(0, 0, 0, 0);
-      } else if (filter === 'this-month') {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      } else if (filter === 'last-month') {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      if (!dateWindow) {
+        // An unresolvable period is reported rather than silently fetching a
+        // different range than the user selected.
+        toast.error('Invalid date range');
+        setLoading(false);
+        return;
       }
-      const endDate = new Date();
 
-      const monthStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}`;
+      const startDate = dateWindow.start;
+      const endDate = dateWindow.end;
+      const monthStr = dateWindow.monthLabel;
 
       const [expRes, budRes, catRes, sumRes] = await Promise.all([
         api.get('/expenses', {
@@ -154,11 +149,11 @@ const summaryMonth = (() => {
       {/* ⭐ NEW: Top Merchants alongside Top Categories */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <TopCategories expenses={expenses} />
-        <TopMerchants key={refreshKey} month={summaryMonth} />
+        <TopMerchants key={refreshKey} month={dateWindow.monthLabel} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <BudgetProgress expenses={expenses} budgets={budgets} />
+        <BudgetProgress expenses={expenses} budgets={budgets} window={dateWindow} />
       </div>
 
       <SavingsBreakdown summary={summary} />
