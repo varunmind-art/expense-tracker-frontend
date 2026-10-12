@@ -98,6 +98,8 @@ export const scheduleStatusClasses = (status) => {
       return 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200';
     case 'PARTIAL':
       return 'bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200';
+    case 'OVERDUE':
+      return 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200 font-medium';
     case 'UNPAID':
       return 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200';
     default:
@@ -113,6 +115,8 @@ export const scheduleStatusLabel = (status) => {
       return 'Part paid';
     case 'UNPAID':
       return 'Due';
+    case 'OVERDUE':
+      return 'Overdue';
     default:
       return 'Forecast';
   }
@@ -149,5 +153,20 @@ export const loanHeadline = (summary) => {
   if (!summary) return '—';
   if (summary.isClosed) return 'Fully repaid';
   if (summary.isActive === false) return 'Paused';
+  const overdue = Number(summary.overdueInstallments || 0);
+  if (overdue > 0) return `${overdue} instalment${overdue === 1 ? '' : 's'} overdue`;
   return `${formatMonths(summary.remainingMonths)} left`;
+};
+
+/**
+ * The next instalment the borrower actually owes. It is derived from the loan's
+ * own timeline, so it can legitimately be in the past — a scheduled instalment
+ * with no payment recorded is overdue, not "upcoming".
+ */
+export const nextDueLabel = (summary) => {
+  if (!summary || !summary.nextDueDate) return '—';
+  const overdue = Number(summary.overdueInstallments || 0);
+  return overdue > 0
+    ? `${formatDate(summary.nextDueDate)} (${overdue} overdue)`
+    : formatDate(summary.nextDueDate);
 };

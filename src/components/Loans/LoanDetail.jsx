@@ -10,6 +10,7 @@ import {
   formatMonths,
   formatPercent,
   loanTypeLabel,
+  nextDueLabel,
   progressWidth,
 } from '../../utils/loans';
 import AddPaymentModal from './AddPaymentModal';
@@ -199,7 +200,9 @@ const LoanDetail = () => {
             {activeSummary.isClosed ? 'Closed' : formatMonths(activeSummary.remainingMonths)}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {loan.nextEmiDate ? `Next EMI ${formatDate(loan.nextEmiDate)}` : 'No EMI date set'}
+            {activeSummary.nextDueDate
+              ? `Next due ${nextDueLabel(activeSummary)}`
+              : 'No due date on the schedule'}
           </p>
         </div>
         <div className={CARD}>
@@ -256,6 +259,20 @@ const LoanDetail = () => {
           </div>
         </div>
       </div>
+
+      {Number(activeSummary.overdueInstallments || 0) > 0 && (
+        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
+          <p className="text-sm text-red-800 dark:text-red-200">
+            <span className="font-semibold">
+              {activeSummary.overdueInstallments} instalment
+              {activeSummary.overdueInstallments === 1 ? '' : 's'} past due with no payment recorded.
+            </span>{' '}
+            The earliest is {formatDate(activeSummary.nextDueDate)}. The schedule is not
+            assumed to be settled — record the payments you have made, or they stay
+            outstanding.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-4 border-b dark:border-gray-700">
         {TABS.map((option) => (

@@ -6,10 +6,10 @@ import { formatIndianCurrency } from '../../utils/helpers';
 import {
   BUTTON,
   CARD,
-  formatDate,
   formatMonths,
   formatPercent,
   loanTypeLabel,
+  nextDueLabel,
   progressWidth,
 } from '../../utils/loans';
 
@@ -220,9 +220,15 @@ const LoansList = () => {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Next EMI</dt>
-                    <dd className="text-gray-800 dark:text-gray-200 font-medium">
-                      {loan.nextEmiDate ? formatDate(loan.nextEmiDate) : '—'}
+                    <dt className="text-gray-500 dark:text-gray-400">Next due</dt>
+                    <dd
+                      className={`font-medium ${
+                        Number(summary.overdueInstallments || 0) > 0
+                          ? 'text-red-600 dark:text-red-400'
+                          : 'text-gray-800 dark:text-gray-200'
+                      }`}
+                    >
+                      {nextDueLabel(summary)}
                     </dd>
                   </div>
                 </dl>

@@ -8,7 +8,9 @@ import {
   formatMonth,
   formatMonths,
   formatPercent,
+  loanHeadline,
   loanTypeLabel,
+  nextDueLabel,
   paymentKindLabel,
   progressWidth,
   scheduleStatusClasses,
@@ -198,4 +200,48 @@ test('every button variant has styling, so no action renders unstyled', () => {
   for (const [name, value] of Object.entries(BUTTON)) {
     assert.ok(typeof value === 'string' && value.length > 0, `${name} is empty`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Overdue instalments must be visibly distinct from a forecast
+// ---------------------------------------------------------------------------
+
+test('an overdue instalment is visually and textually distinct from a forecast', () => {
+  assert.equal(scheduleStatusLabel('OVERDUE'), 'Overdue');
+  assert.notEqual(scheduleStatusLabel('OVERDUE'), scheduleStatusLabel('FORECAST'));
+  assert.notEqual(scheduleStatusClasses('OVERDUE'), scheduleStatusClasses('FORECAST'));
+  assert.notEqual(scheduleStatusClasses('OVERDUE'), scheduleStatusClasses('PAID'));
+});
+
+test('the next-due label surfaces the overdue count and never implies it is settled', () => {
+  // Derived from the timeline, so it can legitimately be a past date.
+  assert.equal(
+    nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 6 }),
+    '05 May 2026 (6 overdue)'
+  );
+  assert.equal(
+    nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 1 }),
+    '05 May 2026 (1 overdue)'
+  );
+  assert.equal(nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 0 }), '05 May 2026');
+  assert.equal(nextDueLabel({ nextDueDate: null, overdueInstallments: 3 }), '—');
+  assert.equal(nextDueLabel(null), '—');
+  assert.equal(nextDueLabel(undefined), '—');
+});
+
+test('the loan headline leads with overdue instalments when there are any', () => {
+  assert.equal(
+    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 6, remainingMonths: 179 }),
+    '6 instalments overdue'
+  );
+  assert.equal(
+    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 1, remainingMonths: 179 }),
+    '1 instalment overdue'
+  );
+  assert.equal(
+    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 0, remainingMonths: 179 }),
+    '14 yr 11 mo left'
+  );
+  assert.equal(loanHeadline({ isClosed: true, overdueInstallments: 4 }), 'Fully repaid');
+  assert.equal(loanHeadline({ isClosed: false, isActive: false, overdueInstallments: 4 }), 'Paused');
 });
