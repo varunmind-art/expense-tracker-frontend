@@ -17,6 +17,9 @@ import PendingList from './components/Pending/PendingList';
 import Income from './components/Income/Income';
 import RecurringRules from './components/Recurring/RecurringRules';
 import MerchantInsights from './components/Merchants/MerchantInsights';
+import LoansList from './components/Loans/LoansList';
+import LoanForm from './components/Loans/LoanForm';
+import LoanDetail from './components/Loans/LoanDetail';
 
 function App() {
   const { token, loading } = useAuth();
@@ -64,6 +67,10 @@ function App() {
           <Route path="/income" element={token ? <Income /> : <Navigate to="/login" />} />
           <Route path="/recurring" element={token ? <RecurringRules /> : <Navigate to="/login" />} />
           <Route path="/merchants" element={token ? <MerchantInsights /> : <Navigate to="/login" />} />
+          <Route path="/loans" element={token ? <LoansList /> : <Navigate to="/login" />} />
+          <Route path="/loans/new" element={token ? <LoanForm /> : <Navigate to="/login" />} />
+          <Route path="/loans/:id" element={token ? <LoanDetail /> : <Navigate to="/login" />} />
+          <Route path="/loans/:id/edit" element={token ? <LoanForm /> : <Navigate to="/login" />} />
         </Routes>
       </div>
     </div>

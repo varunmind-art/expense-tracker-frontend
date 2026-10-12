@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import ThemeToggle from '../Common/ThemeToggle';
 import { Menu } from '@headlessui/react';
-import { UserCircleIcon } from '@heroicons/react/24/outline';
+import { UserCircleIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleLogout = () => {
     logout();
@@ -19,12 +21,17 @@ const Navbar = () => {
     { name: 'Expenses', path: '/expenses' },
     { name: 'Income', path: '/income' },
     { name: 'Recurring', path: '/recurring' },
+    { name: 'Loans', path: '/loans' },
     { name: 'Merchants', path: '/merchants' },
     { name: 'Budgets', path: '/budgets' },
     { name: 'Categories', path: '/categories' },
     { name: 'Pending', path: '/pending' },
     { name: 'Settings', path: '/settings' },
   ];
+
+  // "/loans/123" must highlight the Loans entry too.
+  const isActive = (path) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path);
 
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
@@ -33,12 +40,16 @@ const Navbar = () => {
           <Link to="/" className="text-xl font-bold text-blue-600 dark:text-blue-400">
             💰 Expense Tracker
           </Link>
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden lg:flex items-center space-x-5">
             {navLinks.map((link) => (
               <Link
                 key={link.path}
                 to={link.path}
-                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition"
+                className={`transition ${
+                  isActive(link.path)
+                    ? 'text-blue-600 dark:text-blue-400 font-medium'
+                    : 'text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400'
+                }`}
               >
                 {link.name}
               </Link>
@@ -66,9 +77,41 @@ const Navbar = () => {
                 </Menu.Item>
               </Menu.Items>
             </Menu>
+            <button
+              type="button"
+              onClick={() => setMobileOpen((open) => !open)}
+              className="lg:hidden text-gray-700 dark:text-gray-300 hover:text-blue-600 transition"
+              aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileOpen}
+            >
+              {mobileOpen ? <XMarkIcon className="h-7 w-7" /> : <Bars3Icon className="h-7 w-7" />}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile navigation: without this the links are simply unreachable on a
+          small screen, because the desktop row is hidden below the lg breakpoint. */}
+      {mobileOpen && (
+        <div className="lg:hidden border-t dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="container mx-auto px-4 py-2">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMobileOpen(false)}
+                className={`block px-2 py-3 rounded-lg transition ${
+                  isActive(link.path)
+                    ? 'text-blue-600 dark:text-blue-400 font-medium bg-blue-50 dark:bg-gray-700'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
