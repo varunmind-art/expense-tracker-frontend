@@ -37,6 +37,7 @@ const LoanDetail = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   const [schedule, setSchedule] = useState(null);
+  const [scheduleError, setScheduleError] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -68,7 +69,7 @@ const LoanDetail = () => {
   // The schedule is only fetched when its tab is opened: it is a full
   // amortization table and there is no reason to compute it up front.
   useEffect(() => {
-    if (tab !== 'schedule' || schedule) return undefined;
+    if (tab !== 'schedule' || schedule || scheduleError) return undefined;
 
     let cancelled = false;
 
@@ -78,16 +79,20 @@ const LoanDetail = () => {
         if (!cancelled) setSchedule(res.data);
       })
       .catch((error) => {
-        if (!cancelled) toast.error(error.response?.data?.error || 'Failed to load schedule');
+        if (cancelled) return;
+        // Without this the tab would show "Loading schedule..." forever, because
+        // the loading flag is derived from the schedule being absent.
+        setScheduleError(error.response?.data?.error || 'Failed to load the schedule.');
       });
 
     return () => {
       cancelled = true;
     };
-  }, [tab, id, schedule]);
+  }, [tab, id, schedule, scheduleError]);
 
   const handleChanged = async () => {
     setSchedule(null);
+    setScheduleError(null);
     await load();
   };
 
@@ -130,7 +135,7 @@ const LoanDetail = () => {
 
   const activeSummary = summary || loan.summary || {};
   // Derived, so there is no loading flag to keep in sync with the request.
-  const scheduleLoading = tab === 'schedule' && !schedule;
+  const scheduleLoading = tab === 'schedule' && !schedule && !scheduleError;
 
   return (
     <div>
@@ -324,7 +329,20 @@ const LoanDetail = () => {
         <div className="space-y-4">
           {scheduleLoading && <div className={CARD}>Loading schedule...</div>}
 
-          {!scheduleLoading && schedule && (
+          {scheduleError && (
+            <div className={CARD}>
+              <p className="text-sm text-red-600 dark:text-red-400">{scheduleError}</p>
+              <button
+                type="button"
+                onClick={() => setScheduleError(null)}
+                className={`${BUTTON.secondary} mt-3`}
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
+          {!scheduleLoading && !scheduleError && schedule && (
             <>
               <AmortizationTable
                 rows={schedule.schedule.rows}
