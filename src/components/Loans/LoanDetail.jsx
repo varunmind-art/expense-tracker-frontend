@@ -16,12 +16,18 @@ import {
 import AddPaymentModal from './AddPaymentModal';
 import AmortizationTable from './AmortizationTable';
 import LoanPayments from './LoanPayments';
+import LoanLedger from './LoanLedger';
+import LoanImport from './LoanImport';
+import LoanEmiSchedule from './LoanEmiSchedule';
 import PayoffSimulator from './PayoffSimulator';
 
 const TABS = [
   { value: 'overview', label: 'Overview' },
   { value: 'payments', label: 'Payments' },
-  { value: 'schedule', label: 'Schedule' },
+  { value: 'ledger', label: 'Disbursements & interest' },
+  { value: 'deductions', label: 'Deduction schedule' },
+  { value: 'import', label: 'Import' },
+  { value: 'schedule', label: 'Amortisation' },
   { value: 'simulator', label: 'Prepayment simulator' },
 ];
 
@@ -341,6 +347,14 @@ const LoanDetail = () => {
           onChanged={handleChanged}
         />
       )}
+
+      {tab === 'ledger' && <LoanLedger loanId={loan.id} />}
+
+      {tab === 'deductions' && (
+        <LoanEmiSchedule loanId={loan.id} loan={loan} onChanged={handleChanged} />
+      )}
+
+      {tab === 'import' && <LoanImport loanId={loan.id} onImported={handleChanged} />}
 
       {tab === 'schedule' && (
         <div className="space-y-4">
