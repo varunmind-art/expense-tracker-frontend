@@ -6,10 +6,13 @@ import { formatIndianCurrency } from '../../utils/helpers';
 import {
   BUTTON,
   CARD,
-  formatMonths,
+  formatDate,
   formatPercent,
+  loanStatusClasses,
+  loanStatusLabel,
   loanTypeLabel,
-  nextDueLabel,
+  nextScheduledLabel,
+  principalAllocationPending,
   progressWidth,
 } from '../../utils/loans';
 
@@ -161,49 +164,58 @@ const LoansList = () => {
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    <span
-                      className={`text-xs font-medium px-2 py-1 rounded ${
-                        summary.isClosed
-                          ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200'
-                          : loan.isActive
-                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                      }`}
-                    >
-                      {summary.isClosed ? 'Closed' : loan.isActive ? 'Active' : 'Paused'}
+                    <span className={`text-xs font-medium px-2 py-1 rounded ${loanStatusClasses(summary.status)}`}>
+                      {loanStatusLabel(summary.status)}
                     </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Outstanding</p>
-                    <p className="text-xl font-bold text-gray-800 dark:text-white">
-                      {formatIndianCurrency(summary.outstandingPrincipal)}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Reconciled bank balance</p>
+                    <p className="text-lg font-bold text-gray-800 dark:text-white">
+                      {summary.bankBalance === null || summary.bankBalance === undefined
+                        ? '—'
+                        : formatIndianCurrency(summary.bankBalance)}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {summary.bankBalanceAsOf ? `as of ${formatDate(summary.bankBalanceAsOf)}` : 'no statement date'}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">EMI</p>
-                    <p className="text-xl font-bold text-gray-800 dark:text-white">
-                      {loan.emiAmount ? formatIndianCurrency(loan.emiAmount) : '—'}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Repaid (recorded)</p>
+                    <p className="text-lg font-bold text-gray-800 dark:text-white">
+                      {formatIndianCurrency(summary.totalRepaid)}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {summary.paymentCount ?? 0} payment{(summary.paymentCount ?? 0) === 1 ? '' : 's'}
                     </p>
                   </div>
                 </div>
 
                 <div className="mb-4">
-                  <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
-                    <span>{formatPercent(summary.progressPercent)} repaid</span>
-                    <span>
-                      {formatIndianCurrency(summary.principalRepaid)} of{' '}
-                      {formatIndianCurrency(loan.originalPrincipal)}
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all"
-                      style={{ width: progressWidth(summary.progressPercent) }}
-                    />
-                  </div>
+                  {principalAllocationPending(summary) ? (
+                    <p className="text-xs rounded bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 px-2 py-1.5">
+                      Principal allocation pending — the bank did not disclose a principal/interest split, so
+                      outstanding principal and repayment progress are not shown.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
+                        <span>{formatPercent(summary.progressPercent)} repaid</span>
+                        <span>
+                          {formatIndianCurrency(summary.principalRepaid)} of{' '}
+                          {formatIndianCurrency(loan.originalPrincipal)}
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all"
+                          style={{ width: progressWidth(summary.progressPercent) }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <dl className="grid grid-cols-3 gap-2 text-xs mb-4">
@@ -214,24 +226,26 @@ const LoansList = () => {
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Remaining</dt>
+                    <dt className="text-gray-500 dark:text-gray-400">Interest posted</dt>
                     <dd className="text-gray-800 dark:text-gray-200 font-medium">
-                      {formatMonths(summary.remainingMonths)}
+                      {formatIndianCurrency(summary.totalInterestPosted)}
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Next due</dt>
-                    <dd
-                      className={`font-medium ${
-                        Number(summary.overdueInstallments || 0) > 0
-                          ? 'text-red-600 dark:text-red-400'
-                          : 'text-gray-800 dark:text-gray-200'
-                      }`}
-                    >
-                      {nextDueLabel(summary)}
+                    <dt className="text-gray-500 dark:text-gray-400">Next scheduled</dt>
+                    <dd className="text-gray-800 dark:text-gray-200 font-medium">
+                      {nextScheduledLabel(summary)}
                     </dd>
                   </div>
                 </dl>
+
+                {Number(summary.scheduledAwaitingConfirmation || 0) > 0 && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mb-3">
+                    {summary.scheduledAwaitingConfirmation} scheduled instalment
+                    {summary.scheduledAwaitingConfirmation === 1 ? '' : 's'} awaiting bank confirmation
+                    {summary.nextScheduledDueDate ? ` (due ${formatDate(summary.nextScheduledDueDate)})` : ''}.
+                  </p>
+                )}
 
                 <div className="flex flex-wrap items-center gap-2 mt-auto">
                   <button

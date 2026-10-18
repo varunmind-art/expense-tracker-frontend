@@ -7,10 +7,11 @@ import {
   BUTTON,
   CARD,
   formatDate,
-  formatMonths,
   formatPercent,
+  loanStatusLabel,
   loanTypeLabel,
-  nextDueLabel,
+  nextScheduledLabel,
+  principalAllocationPending,
   progressWidth,
 } from '../../utils/loans';
 import AddPaymentModal from './AddPaymentModal';
@@ -183,99 +184,127 @@ const LoanDetail = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className={CARD}>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Outstanding principal</p>
-          <p className="text-2xl font-bold text-gray-800 dark:text-white">
-            {formatIndianCurrency(activeSummary.outstandingPrincipal)}
+          <p className="text-sm text-gray-500 dark:text-gray-400">Reconciled bank balance</p>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+            {activeSummary.bankBalance === null || activeSummary.bankBalance === undefined
+              ? '—'
+              : formatIndianCurrency(activeSummary.bankBalance)}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            of {formatIndianCurrency(loan.originalPrincipal)} borrowed
+            {activeSummary.bankBalanceAsOf
+              ? `as of ${formatDate(activeSummary.bankBalanceAsOf)}`
+              : 'no statement date'}
           </p>
         </div>
         <div className={CARD}>
-          <p className="text-sm text-gray-500 dark:text-gray-400">EMI</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Repaid (recorded)</p>
           <p className="text-2xl font-bold text-gray-800 dark:text-white">
-            {loan.emiAmount ? formatIndianCurrency(loan.emiAmount) : '—'}
+            {formatIndianCurrency(activeSummary.totalRepaid)}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            at {formatPercent(loan.interestRate)} per year
+            {activeSummary.paymentCount ?? 0} payment{(activeSummary.paymentCount ?? 0) === 1 ? '' : 's'} ·{' '}
+            interest posted {formatIndianCurrency(activeSummary.totalInterestPosted)}
           </p>
         </div>
         <div className={CARD}>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Remaining tenure</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Status</p>
           <p className="text-2xl font-bold text-gray-800 dark:text-white">
-            {activeSummary.isClosed ? 'Closed' : formatMonths(activeSummary.remainingMonths)}
+            {loanStatusLabel(activeSummary.status)}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {activeSummary.nextDueDate
-              ? `Next due ${nextDueLabel(activeSummary)}`
-              : 'No due date on the schedule'}
+            {formatPercent(loan.interestRate)} current rate
+            {loan.emiAmount ? ` · EMI ${formatIndianCurrency(loan.emiAmount)}` : ''}
           </p>
         </div>
         <div className={CARD}>
-          <p className="text-sm text-gray-500 dark:text-gray-400">Estimated payoff</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Next scheduled deduction</p>
           <p className="text-2xl font-bold text-gray-800 dark:text-white">
-            {formatDate(activeSummary.estimatedPayoffDate)}
+            {activeSummary.nextScheduledDueDate ? formatDate(activeSummary.nextScheduledDueDate) : 'None'}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {formatIndianCurrency(activeSummary.totalInterestPaid)} interest paid so far
+            {activeSummary.nextScheduledAmount === null || activeSummary.nextScheduledAmount === undefined
+              ? 'no future instalments'
+              : `${formatIndianCurrency(activeSummary.nextScheduledAmount)} · ${activeSummary.scheduledAwaitingConfirmation} awaiting confirmation`}
           </p>
         </div>
       </div>
 
       <div className={`${CARD} mb-6`}>
-        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-2">
-          <span className="font-medium">
-            {formatPercent(activeSummary.progressPercent)} repaid
-          </span>
-          <span>
-            {formatIndianCurrency(activeSummary.principalRepaid)} of{' '}
-            {formatIndianCurrency(loan.originalPrincipal)}
-          </span>
-        </div>
-        <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all"
-            style={{ width: progressWidth(activeSummary.progressPercent) }}
-          />
-        </div>
+        {principalAllocationPending(activeSummary) ? (
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2">
+            <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+              Principal allocation pending
+            </p>
+            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">
+              SBI did not disclose a principal/interest split on the imported repayments, so outstanding
+              principal and repayment progress cannot be shown as verified. The reconciled bank balance
+              above is the authoritative figure. Do not read it as principal outstanding.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300 mb-2">
+              <span className="font-medium">{formatPercent(activeSummary.progressPercent)} repaid</span>
+              <span>
+                {formatIndianCurrency(activeSummary.principalRepaid)} of{' '}
+                {formatIndianCurrency(loan.originalPrincipal)}
+              </span>
+            </div>
+            <div className="w-full h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-blue-600 dark:bg-blue-500 rounded-full transition-all"
+                style={{ width: progressWidth(activeSummary.progressPercent) }}
+              />
+            </div>
+          </>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Payments recorded</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Disbursed</p>
             <p className="font-medium text-gray-800 dark:text-gray-200">
-              {activeSummary.paymentCount ?? payments.length}
+              {formatIndianCurrency(activeSummary.totalDisbursed)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Total paid</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Sanctioned limit</p>
             <p className="font-medium text-gray-800 dark:text-gray-200">
-              {formatIndianCurrency(activeSummary.totalAmountPaid)}
+              {activeSummary.sanctionedLimit === null ? '—' : formatIndianCurrency(activeSummary.sanctionedLimit)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Start date</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Interest posted</p>
             <p className="font-medium text-gray-800 dark:text-gray-200">
-              {formatDate(loan.startDate)}
+              {formatIndianCurrency(activeSummary.totalInterestPosted)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Stated end date</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Interest paid</p>
             <p className="font-medium text-gray-800 dark:text-gray-200">
-              {formatDate(loan.endDate)}
+              {formatIndianCurrency(activeSummary.totalInterestPaid)}
             </p>
           </div>
         </div>
+
+        {activeSummary.projectionUnavailable && (
+          <div className="mt-4 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              <span className="font-semibold">Tenure and payoff unavailable.</span>{' '}
+              {activeSummary.projectionUnavailableReason}
+            </p>
+          </div>
+        )}
       </div>
 
-      {Number(activeSummary.overdueInstallments || 0) > 0 && (
-        <div className="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-4">
-          <p className="text-sm text-red-800 dark:text-red-200">
+      {Number(activeSummary.scheduledAwaitingConfirmation || 0) > 0 && (
+        <div className="mb-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-4">
+          <p className="text-sm text-amber-900 dark:text-amber-200">
             <span className="font-semibold">
-              {activeSummary.overdueInstallments} instalment
-              {activeSummary.overdueInstallments === 1 ? '' : 's'} past due with no payment recorded.
+              {activeSummary.scheduledAwaitingConfirmation} scheduled instalment
+              {activeSummary.scheduledAwaitingConfirmation === 1 ? '' : 's'} awaiting bank confirmation.
             </span>{' '}
-            The earliest is {formatDate(activeSummary.nextDueDate)}. The schedule is not
-            assumed to be settled — record the payments you have made, or they stay
-            outstanding.
+            The next is {nextScheduledLabel(activeSummary)}. These are recorded expectations, not
+            confirmed deductions — confirm each one only when the bank has actually debited it.
           </p>
         </div>
       )}

@@ -4,14 +4,19 @@ import assert from 'node:assert/strict';
 import { formatIndianCurrency } from '../src/utils/helpers.js';
 import {
   BUTTON,
+  formatBalanceAsOf,
   formatDate,
   formatMonth,
   formatMonths,
   formatPercent,
+  formatPrincipal,
+  formatProgress,
   loanHeadline,
+  loanStatusLabel,
   loanTypeLabel,
-  nextDueLabel,
+  nextScheduledLabel,
   paymentKindLabel,
+  principalAllocationPending,
   progressWidth,
   scheduleStatusClasses,
   scheduleStatusLabel,
@@ -213,35 +218,62 @@ test('an overdue instalment is visually and textually distinct from a forecast',
   assert.notEqual(scheduleStatusClasses('OVERDUE'), scheduleStatusClasses('PAID'));
 });
 
-test('the next-due label surfaces the overdue count and never implies it is settled', () => {
-  // Derived from the timeline, so it can legitimately be a past date.
-  assert.equal(
-    nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 6 }),
-    '05 May 2026 (6 overdue)'
-  );
-  assert.equal(
-    nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 1 }),
-    '05 May 2026 (1 overdue)'
-  );
-  assert.equal(nextDueLabel({ nextDueDate: '2026-05-05T00:00:00.000Z', overdueInstallments: 0 }), '05 May 2026');
-  assert.equal(nextDueLabel({ nextDueDate: null, overdueInstallments: 3 }), '—');
-  assert.equal(nextDueLabel(null), '—');
-  assert.equal(nextDueLabel(undefined), '—');
-});
 
-test('the loan headline leads with overdue instalments when there are any', () => {
+
+test('the loan headline never claims an instalment is overdue', () => {
+  // Overdue is derived from the real LoanEmiSchedule. An unconfirmed scheduled
+  // deduction is "awaiting confirmation", never "the bank failed to deduct".
   assert.equal(
-    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 6, remainingMonths: 179 }),
-    '6 instalments overdue'
+    loanHeadline({ status: 'ACTIVE', scheduledAwaitingConfirmation: 1, remainingMonths: 179 }),
+    '1 scheduled instalment awaiting confirmation'
   );
   assert.equal(
-    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 1, remainingMonths: 179 }),
-    '1 instalment overdue'
+    loanHeadline({ status: 'ACTIVE', scheduledAwaitingConfirmation: 3 }),
+    '3 scheduled instalments awaiting confirmation'
   );
+  // A loan with no schedule never reports an overdue instalment.
   assert.equal(
-    loanHeadline({ isClosed: false, isActive: true, overdueInstallments: 0, remainingMonths: 179 }),
+    loanHeadline({ status: 'ACTIVE', scheduledAwaitingConfirmation: 0, remainingMonths: 179 }),
     '14 yr 11 mo left'
   );
-  assert.equal(loanHeadline({ isClosed: true, overdueInstallments: 4 }), 'Fully repaid');
-  assert.equal(loanHeadline({ isClosed: false, isActive: false, overdueInstallments: 4 }), 'Paused');
+});
+
+test('the loan headline leads with the real loan status', () => {
+  assert.equal(loanHeadline({ status: 'SETTLEMENT_PENDING', bankBalance: 0.01 }), 'Settlement pending');
+  assert.equal(loanHeadline({ status: 'CLOSED', isClosed: true }), 'Fully repaid');
+  assert.equal(loanHeadline({ status: 'PAUSED' }), 'Paused');
+  assert.equal(loanHeadline({ isActive: false }), 'Paused');
+  // Unverified allocation must never read as a 0%-repaid loan.
+  assert.equal(loanHeadline({ status: 'ACTIVE', allocationPending: true }), 'Principal allocation pending');
+  assert.equal(loanHeadline({ status: 'ACTIVE', projectionUnavailable: true }), 'Tenure unavailable');
+});
+
+test('principal and progress are withheld when the allocation is unverified', () => {
+  const pending = { allocationPending: true, outstandingPrincipal: null, progressPercent: null };
+  assert.equal(principalAllocationPending(pending), true);
+  assert.equal(formatProgress(pending), 'Principal allocation pending');
+  assert.equal(formatPrincipal(pending, null), 'Principal allocation pending');
+
+  const verified = { allocationPending: false, outstandingPrincipal: 100, progressPercent: 12.5 };
+  assert.equal(principalAllocationPending(verified), false);
+  assert.equal(formatProgress(verified), '12.50% repaid');
+  assert.equal(formatPrincipal(verified, 100), formatIndianCurrency(100));
+});
+
+test('a reconciled bank balance always carries its as-of date', () => {
+  const label = formatBalanceAsOf({
+    bankBalance: 4478991,
+    bankBalanceAsOf: '2026-09-30T00:00:00.000Z',
+  });
+  assert.ok(label.startsWith(formatIndianCurrency(4478991)));
+  assert.match(label, /as of /);
+  assert.equal(formatBalanceAsOf({ bankBalance: null }), '—');
+});
+
+test('the next scheduled deduction is the real schedule, not a synthetic date', () => {
+  assert.equal(
+    nextScheduledLabel({ nextScheduledDueDate: '2026-10-10T00:00:00.000Z', nextScheduledAmount: 20000 }),
+    '10 Oct 2026 · ' + formatIndianCurrency(20000)
+  );
+  assert.equal(nextScheduledLabel({ nextScheduledDueDate: null }), '—');
 });

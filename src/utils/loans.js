@@ -1,5 +1,7 @@
 // src/utils/loans.js
 
+import { formatIndianCurrency } from './helpers.js';
+
 /**
  * Loan Tracker — presentation helpers.
  *
@@ -149,24 +151,78 @@ export const LABEL = 'block text-sm text-gray-600 dark:text-gray-400 mb-1';
  * The one thing a user needs to see about a loan at a glance, derived from the
  * backend summary rather than recomputed here.
  */
-export const loanHeadline = (summary) => {
-  if (!summary) return '—';
-  if (summary.isClosed) return 'Fully repaid';
-  if (summary.isActive === false) return 'Paused';
-  const overdue = Number(summary.overdueInstallments || 0);
-  if (overdue > 0) return `${overdue} instalment${overdue === 1 ? '' : 's'} overdue`;
-  return `${formatMonths(summary.remainingMonths)} left`;
+/**
+ * A loan's real status. "Settlement pending" means the bank balance has reached
+ * zero but the account is not formally closed, so it must not read as ongoing.
+ */
+export const LOAN_STATUS_LABELS = {
+  ACTIVE: 'Active',
+  SETTLEMENT_PENDING: 'Settlement pending',
+  CLOSED: 'Closed',
+  PAUSED: 'Paused',
+};
+
+export const loanStatusLabel = (status) => LOAN_STATUS_LABELS[status] || 'Active';
+
+export const loanStatusClasses = (status) => {
+  switch (status) {
+    case 'SETTLEMENT_PENDING':
+      return 'bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200';
+    case 'CLOSED':
+      return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-200';
+    case 'PAUSED':
+      return 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300';
+    default:
+      return 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200';
+  }
 };
 
 /**
- * The next instalment the borrower actually owes. It is derived from the loan's
- * own timeline, so it can legitimately be in the past — a scheduled instalment
- * with no payment recorded is overdue, not "upcoming".
+ * Outstanding principal is null whenever the bank did not disclose a
+ * principal/interest split. Rendering that as 0% repaid or as the disbursed
+ * figure would imply a verification that never happened.
  */
-export const nextDueLabel = (summary) => {
-  if (!summary || !summary.nextDueDate) return '—';
-  const overdue = Number(summary.overdueInstallments || 0);
-  return overdue > 0
-    ? `${formatDate(summary.nextDueDate)} (${overdue} overdue)`
-    : formatDate(summary.nextDueDate);
+export const principalAllocationPending = (summary) =>
+  Boolean(summary && (summary.allocationPending || summary.outstandingPrincipal === null));
+
+export const formatPrincipal = (summary, value) => {
+  if (principalAllocationPending(summary)) return 'Principal allocation pending';
+  return formatIndianCurrency(value);
 };
+
+export const formatProgress = (summary) => {
+  if (principalAllocationPending(summary)) return 'Principal allocation pending';
+  const value = Number(summary?.progressPercent);
+  return Number.isFinite(value) ? `${value.toFixed(2)}% repaid` : '—';
+};
+
+/** A reconciled bank balance is only meaningful with the date it was read. */
+export const formatBalanceAsOf = (summary) => {
+  if (!summary || summary.bankBalance === null || summary.bankBalance === undefined) return '—';
+  const on = summary.bankBalanceAsOf ? ` as of ${formatDate(summary.bankBalanceAsOf)}` : '';
+  return `${formatIndianCurrency(summary.bankBalance)}${on}`;
+};
+
+export const loanHeadline = (summary) => {
+  if (!summary) return '—';
+  if (summary.status === 'SETTLEMENT_PENDING') return 'Settlement pending';
+  if (summary.status === 'CLOSED' || summary.isClosed) return 'Fully repaid';
+  if (summary.status === 'PAUSED' || summary.isActive === false) return 'Paused';
+
+  const awaiting = Number(summary.scheduledAwaitingConfirmation || 0);
+  if (awaiting > 0) {
+    return `${awaiting} scheduled instalment${awaiting === 1 ? '' : 's'} awaiting confirmation`;
+  }
+  if (principalAllocationPending(summary)) return 'Principal allocation pending';
+  if (summary.projectionUnavailable) return 'Tenure unavailable';
+  if (summary.remainingMonths === null || summary.remainingMonths === undefined) return '—';
+  return `${formatMonths(summary.remainingMonths)} left`;
+};
+
+/** The next deduction that is genuinely scheduled (never a synthetic timeline). */
+export const nextScheduledLabel = (summary) => {
+  if (!summary || !summary.nextScheduledDueDate) return '—';
+  const amount = summary.nextScheduledAmount === null ? '' : ` · ${formatIndianCurrency(summary.nextScheduledAmount)}`;
+  return `${formatDate(summary.nextScheduledDueDate)}${amount}`;
+};
+
