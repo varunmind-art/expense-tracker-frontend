@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import { formatIndianCurrency } from '../src/utils/helpers.js';
 import {
+  ALLOCATION_PENDING_LABEL,
   BUTTON,
+  aggregateLoanTotals,
   formatBalanceAsOf,
   formatDate,
   formatMonth,
@@ -276,4 +278,104 @@ test('the next scheduled deduction is the real schedule, not a synthetic date', 
     '10 Oct 2026 · ' + formatIndianCurrency(20000)
   );
   assert.equal(nextScheduledLabel({ nextScheduledDueDate: null }), '—');
+});
+
+// ---------------------------------------------------------------------------
+// My Loans aggregate header: unavailable is never zero
+// ---------------------------------------------------------------------------
+
+const sbiMain = {
+  id: 'main',
+  name: 'SBI Main Home Loan',
+  emiAmount: 27801,
+  summary: {
+    outstandingPrincipal: null,
+    principalRepaid: null,
+    progressPercent: null,
+    allocationPending: true,
+    bankBalance: 4478991,
+    bankBalanceAsOf: '2026-09-30T00:00:00.000Z',
+    status: 'ACTIVE',
+    scheduledAwaitingConfirmation: 1,
+  },
+};
+
+const sbiInsurance = {
+  id: 'ins',
+  name: 'SBI Insurance Loan (Loan Protect)',
+  summary: {
+    outstandingPrincipal: null,
+    principalRepaid: null,
+    progressPercent: null,
+    allocationPending: true,
+    bankBalance: 0.01,
+    bankBalanceAsOf: '2026-10-18T00:00:00.000Z',
+    status: 'SETTLEMENT_PENDING',
+    scheduledAwaitingConfirmation: 0,
+  },
+};
+
+test('REGRESSION: the header never reports ₹0 for an unavailable principal', () => {
+  const totals = aggregateLoanTotals([sbiMain, sbiInsurance]);
+
+  assert.equal(totals.outstandingKnown, false, 'a null must make the aggregate unknown');
+  assert.equal(totals.repaidKnown, false);
+  // The raw sums stay 0, but they must never be displayed: the flag gates them.
+  assert.equal(totals.outstanding, 0);
+  assert.equal(ALLOCATION_PENDING_LABEL, 'Unavailable — allocation pending');
+  assert.equal(formatIndianCurrency(totals.outstanding), '₹0.00', 'which is exactly why the flag gates rendering');
+});
+
+test('one unavailable loan makes the whole aggregate unavailable', () => {
+  const verified = {
+    id: 'ok',
+    name: 'Verified loan',
+    summary: { outstandingPrincipal: 500000, principalRepaid: 500000, status: 'ACTIVE', bankBalance: 500000 },
+  };
+  const mixed = aggregateLoanTotals([verified, sbiMain]);
+  assert.equal(mixed.outstandingKnown, false);
+  assert.equal(mixed.repaidKnown, false);
+
+  const onlyVerified = aggregateLoanTotals([verified]);
+  assert.equal(onlyVerified.outstandingKnown, true);
+  assert.equal(onlyVerified.outstanding, 500000);
+  assert.equal(onlyVerified.repaidKnown, true);
+});
+
+test('an empty portfolio is known-zero, not unavailable', () => {
+  const totals = aggregateLoanTotals([]);
+  assert.equal(totals.outstandingKnown, true);
+  assert.equal(totals.outstanding, 0);
+  assert.deepEqual(totals.bankBalances, []);
+});
+
+test('bank balances are listed per loan with their own dates, never summed', () => {
+  const totals = aggregateLoanTotals([sbiMain, sbiInsurance]);
+  assert.equal(totals.bankBalances.length, 2);
+
+  const main = totals.bankBalances.find((b) => b.id === 'main');
+  const ins = totals.bankBalances.find((b) => b.id === 'ins');
+  assert.equal(main.balance, 4478991);
+  assert.equal(ins.balance, 0.01);
+  // The two balances are on different dates and must not be combined.
+  assert.notEqual(main.asOf, ins.asOf);
+  assert.equal(totals.bankBalanceTotal, undefined, 'there is deliberately no combined total');
+  assert.equal(formatBalanceAsOf({ bankBalance: main.balance, bankBalanceAsOf: main.asOf }).includes('as of'), true);
+});
+
+test('the header counts statuses instead of guessing from isClosed', () => {
+  const totals = aggregateLoanTotals([sbiMain, sbiInsurance]);
+  assert.equal(totals.active, 1, 'main loan is Active');
+  assert.equal(totals.settlementPending, 1, 'insurance loan is Settlement pending, not Closed');
+  assert.equal(totals.closed, 0);
+  assert.equal(totals.awaiting, 1, 'the 10 Oct scheduled deduction awaits confirmation');
+});
+
+test('the main loan keeps its contractual EMI distinct from the scheduled deduction', () => {
+  // Listed on the card as "Contractual EMI", while "Next scheduled" shows 20,000.
+  assert.equal(sbiMain.emiAmount, 27801);
+  assert.equal(
+    nextScheduledLabel({ nextScheduledDueDate: '2026-10-10T00:00:00.000Z', nextScheduledAmount: 20000 }),
+    '10 Oct 2026 · ' + formatIndianCurrency(20000)
+  );
 });

@@ -226,3 +226,55 @@ export const nextScheduledLabel = (summary) => {
   return `${formatDate(summary.nextScheduledDueDate)}${amount}`;
 };
 
+/** Shown wherever a money figure is genuinely not computable. */
+export const ALLOCATION_PENDING_LABEL = 'Unavailable — allocation pending';
+
+/**
+ * Aggregate the My Loans header across loans.
+ *
+ * A null means "not computable", NOT zero. One unavailable loan makes the
+ * aggregate unavailable — summing the rest would silently understate it, which is
+ * how a header ends up reporting "Total outstanding ₹0.00" for real debt.
+ *
+ * Bank balances are never summed: each is stated as of its own date, so they are
+ * returned as a list rather than a total.
+ */
+export const aggregateLoanTotals = (loans = []) => {
+  const totals = {
+    outstanding: 0,
+    repaid: 0,
+    outstandingKnown: true,
+    repaidKnown: true,
+    active: 0,
+    settlementPending: 0,
+    closed: 0,
+    awaiting: 0,
+    bankBalances: [],
+  };
+
+  for (const loan of loans || []) {
+    const summary = (loan && loan.summary) || {};
+
+    if (typeof summary.outstandingPrincipal === 'number') totals.outstanding += summary.outstandingPrincipal;
+    else totals.outstandingKnown = false;
+
+    if (typeof summary.principalRepaid === 'number') totals.repaid += summary.principalRepaid;
+    else totals.repaidKnown = false;
+
+    if (summary.bankBalance !== null && summary.bankBalance !== undefined) {
+      totals.bankBalances.push({
+        id: loan.id,
+        name: loan.name,
+        balance: summary.bankBalance,
+        asOf: summary.bankBalanceAsOf,
+      });
+    }
+
+    if (summary.status === 'ACTIVE') totals.active += 1;
+    if (summary.status === 'SETTLEMENT_PENDING') totals.settlementPending += 1;
+    if (summary.status === 'CLOSED') totals.closed += 1;
+    totals.awaiting += Number(summary.scheduledAwaitingConfirmation || 0);
+  }
+
+  return totals;
+};

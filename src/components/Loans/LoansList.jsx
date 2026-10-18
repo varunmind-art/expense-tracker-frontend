@@ -4,8 +4,10 @@ import api from '../../api/client';
 import toast from 'react-hot-toast';
 import { formatIndianCurrency } from '../../utils/helpers';
 import {
+  ALLOCATION_PENDING_LABEL,
   BUTTON,
   CARD,
+  aggregateLoanTotals,
   formatDate,
   formatPercent,
   loanStatusClasses,
@@ -71,20 +73,8 @@ const LoansList = () => {
     return <div className="text-center py-10">Loading...</div>;
   }
 
-  const totals = loans.reduce(
-    (acc, loan) => {
-      const summary = loan.summary || {};
-      acc.outstanding += Number(summary.outstandingPrincipal || 0);
-      acc.original += Number(loan.originalPrincipal || 0);
-      acc.repaid += Number(summary.principalRepaid || 0);
-      if (loan.isActive && !summary.isClosed) {
-        acc.active += 1;
-        acc.monthlyEmi += Number(loan.emiAmount || 0);
-      }
-      return acc;
-    },
-    { outstanding: 0, original: 0, repaid: 0, active: 0, monthlyEmi: 0 }
-  );
+  const totals = aggregateLoanTotals(loans);
+  const ALLOCATION_PENDING = ALLOCATION_PENDING_LABEL;
 
   return (
     <div>
@@ -101,30 +91,73 @@ const LoansList = () => {
       </div>
 
       {loans.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className={CARD}>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Total outstanding</p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">
-              {formatIndianCurrency(totals.outstanding)}
-            </p>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+            <div className={CARD}>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Principal outstanding</p>
+              <p
+                className={`font-bold ${
+                  totals.outstandingKnown
+                    ? 'text-2xl text-gray-800 dark:text-white'
+                    : 'text-sm text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {totals.outstandingKnown ? formatIndianCurrency(totals.outstanding) : ALLOCATION_PENDING}
+              </p>
+            </div>
+            <div className={CARD}>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Principal repaid</p>
+              <p
+                className={`font-bold ${
+                  totals.repaidKnown
+                    ? 'text-2xl text-green-600 dark:text-green-400'
+                    : 'text-sm text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {totals.repaidKnown ? formatIndianCurrency(totals.repaid) : ALLOCATION_PENDING}
+              </p>
+            </div>
+            <div className={CARD}>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Active loans</p>
+              <p className="text-2xl font-bold text-gray-800 dark:text-white">{totals.active}</p>
+            </div>
+            <div className={CARD}>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Settlement pending</p>
+              <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
+                {totals.settlementPending}
+              </p>
+              {totals.closed > 0 && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{totals.closed} closed</p>
+              )}
+            </div>
           </div>
-          <div className={CARD}>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Principal repaid</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {formatIndianCurrency(totals.repaid)}
-            </p>
-          </div>
-          <div className={CARD}>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Monthly EMIs</p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">
-              {formatIndianCurrency(totals.monthlyEmi)}
-            </p>
-          </div>
-          <div className={CARD}>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Active loans</p>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">{totals.active}</p>
-          </div>
-        </div>
+
+          {/* Reconciled balances are per loan, each with its own statement date. */}
+          {totals.bankBalances.length > 0 && (
+            <div className={`${CARD} mb-6`}>
+              <p className="text-sm font-semibold text-gray-800 dark:text-white mb-2">
+                Reconciled bank balances
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Each balance is the bank's figure as of its own statement date. They are not summed,
+                and they are not principal outstanding.
+              </p>
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                {totals.bankBalances.map((row) => (
+                  <li key={row.id} className="py-2 flex flex-wrap justify-between gap-2 text-sm">
+                    <span className="text-gray-700 dark:text-gray-200">{row.name}</span>
+                    <span className="text-gray-800 dark:text-gray-100 font-medium">
+                      {formatIndianCurrency(row.balance)}
+                      <span className="text-gray-500 dark:text-gray-400 font-normal">
+                        {row.asOf ? ` as of ${formatDate(row.asOf)}` : ' (no statement date)'}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </>
       )}
 
       {loans.length === 0 ? (
@@ -218,11 +251,17 @@ const LoansList = () => {
                   )}
                 </div>
 
-                <dl className="grid grid-cols-3 gap-2 text-xs mb-4">
+                <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs mb-4">
                   <div>
                     <dt className="text-gray-500 dark:text-gray-400">Rate</dt>
                     <dd className="text-gray-800 dark:text-gray-200 font-medium">
                       {formatPercent(loan.interestRate)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-500 dark:text-gray-400">Contractual EMI</dt>
+                    <dd className="text-gray-800 dark:text-gray-200 font-medium">
+                      {loan.emiAmount ? formatIndianCurrency(loan.emiAmount) : '—'}
                     </dd>
                   </div>
                   <div>
