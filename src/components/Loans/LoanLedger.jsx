@@ -322,7 +322,9 @@ const LoanLedger = ({ loanId }) => {
                 {postings.postings.map((row) => (
                   <tr key={row.id} className="text-gray-700 dark:text-gray-200">
                     <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.date)}</td>
-                    <td className="px-3 py-2">{row.kind}</td>
+                    <td className="px-3 py-2">
+                      {row.kind === 'CHARGE_SETTLEMENT' ? 'Charge settlement' : row.kind}
+                    </td>
                     <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatIndianCurrency(row.amount)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{row.reference || '—'}</td>
                     <td className="px-3 py-2 text-right">
