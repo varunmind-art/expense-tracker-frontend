@@ -3,6 +3,14 @@ import api from '../../api/client';
 import toast from 'react-hot-toast';
 import ExpenseForm from './ExpenseForm';
 import { formatIndianCurrency } from '../../utils/helpers';
+import {
+  MONTH_OPTIONS,
+  availableYears,
+  filterExpenses,
+  hasActiveFilters,
+  sortExpenses,
+  summarizeTransactions,
+} from '../../utils/expenseFilters';
 
 const ExpenseList = () => {
   const [expenses, setExpenses] = useState([]);
@@ -18,6 +26,8 @@ const ExpenseList = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [typeTab, setTypeTab] = useState('ALL');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterYear, setFilterYear] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -90,42 +100,41 @@ const ExpenseList = () => {
     }
   };
 
-  const filtered = expenses.filter((e) => {
-    const matchType = typeTab === 'ALL' ? true : (e.type || 'EXPENSE') === typeTab;
-    const matchSearch =
-      e.note?.toLowerCase().includes(search.toLowerCase()) ||
-      e.merchant?.toLowerCase().includes(search.toLowerCase()) || // ⭐
-      e.category?.name.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = filterCategory ? e.categoryId === filterCategory : true;
-    const matchMerchant = filterMerchant ? e.merchant === filterMerchant : true; // ⭐
-    return matchType && matchSearch && matchCategory && matchMerchant;
-  });
+  // Every active filter, combined with AND. Defaults are All Months / All Years,
+  // so nothing that was previously visible is hidden on first load.
+  const activeFilters = {
+    typeTab,
+    search,
+    categoryId: filterCategory,
+    merchant: filterMerchant,
+    month: filterMonth,
+    year: filterYear,
+  };
 
-  const sorted = [...filtered].sort((a, b) => {
-    let valA, valB;
-    if (sortBy === 'date') {
-      valA = new Date(a.date);
-      valB = new Date(b.date);
-    } else if (sortBy === 'amount') {
-      valA = parseFloat(a.amount || 0);
-      valB = parseFloat(b.amount || 0);
-    } else if (sortBy === 'merchant') { // ⭐
-      valA = a.merchant || '';
-      valB = b.merchant || '';
-    } else {
-      valA = a.category?.name || '';
-      valB = b.category?.name || '';
-    }
-    if (sortOrder === 'asc') return valA > valB ? 1 : -1;
-    return valA < valB ? 1 : -1;
-  });
+  const filtered = filterExpenses(expenses, activeFilters);
+  const sorted = sortExpenses(filtered, { sortBy, sortOrder });
+
+  // Years come from the transactions themselves, newest first.
+  const transactionYears = availableYears(expenses);
+  const selectedYear = filterYear === '' ? null : Number(filterYear);
+  const yearOptions =
+    selectedYear !== null && !transactionYears.includes(selectedYear)
+      ? [...transactionYears, selectedYear].sort((a, b) => b - a)
+      : transactionYears;
+
+  const clearFilters = () => {
+    setFilterMonth('');
+    setFilterYear('');
+    setFilterCategory('');
+    setFilterMerchant('');
+    setSearch('');
+  };
 
   if (loading) return <div className="text-center py-10">Loading...</div>;
 
-  const totalShown = sorted.reduce((s, e) => s + parseFloat(e.amount || 0), 0);
-  const savingsShown = sorted
-    .filter((e) => (e.type || 'EXPENSE') === 'SAVINGS')
-    .reduce((s, e) => s + parseFloat(e.amount || 0), 0);
+  // The summary cards follow the combined filters automatically.
+  const { total: totalShown, savings: savingsShown } = summarizeTransactions(sorted);
+  const filtersActive = hasActiveFilters(activeFilters);
 
   return (
     <div>
@@ -178,6 +187,41 @@ const ExpenseList = () => {
             <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
           ))}
         </select>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <span className="whitespace-nowrap">Month</span>
+          <select
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            aria-label="Filter by month"
+            className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          >
+            {MONTH_OPTIONS.map((m) => (
+              <option key={m.value || 'all'} value={m.value}>{m.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+          <span className="whitespace-nowrap">Year</span>
+          <select
+            value={filterYear}
+            onChange={(e) => setFilterYear(e.target.value)}
+            aria-label="Filter by year"
+            className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+          >
+            <option value="">All Years</option>
+            {yearOptions.map((y) => (
+              <option key={y} value={String(y)}>{y}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={clearFilters}
+          disabled={!filtersActive}
+          className="px-3 py-2 border rounded-lg dark:border-gray-600 dark:text-white transition disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-700"
+        >
+          Clear Filters
+        </button>
         {/* ⭐ Merchant filter */}
         <select
           value={filterMerchant}
