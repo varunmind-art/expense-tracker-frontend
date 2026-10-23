@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import api from '../../api/client';
 import toast from 'react-hot-toast';
 import ExpenseForm from './ExpenseForm';
+import ExpenseTrendChart from './ExpenseTrendChart';
 import { formatIndianCurrency } from '../../utils/helpers';
 import {
   MONTH_OPTIONS,
@@ -111,8 +112,18 @@ const ExpenseList = () => {
     year: filterYear,
   };
 
-  const filtered = filterExpenses(expenses, activeFilters);
-  const sorted = sortExpenses(filtered, { sortBy, sortOrder });
+  // Memoised on the primitive filters so the derived arrays keep a stable
+  // identity: the table and the trend chart then only recompute when something
+  // actually changes, not on every unrelated re-render.
+  const filtered = useMemo(
+    () => filterExpenses(expenses, activeFilters),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [expenses, typeTab, search, filterCategory, filterMerchant, filterMonth, filterYear]
+  );
+  const sorted = useMemo(
+    () => sortExpenses(filtered, { sortBy, sortOrder }),
+    [filtered, sortBy, sortOrder]
+  );
 
   // Years come from the transactions themselves, newest first.
   const transactionYears = availableYears(expenses);
@@ -271,6 +282,14 @@ const ExpenseList = () => {
           <span className="font-semibold text-green-600 dark:text-green-400">{formatIndianCurrency(savingsShown)}</span>
         </div>
       </div>
+
+      {/* Same filtered rows as the table below; only EXPENSE rows are plotted. */}
+      <ExpenseTrendChart
+        expenses={sorted}
+        month={filterMonth}
+        year={filterYear}
+        typeTab={typeTab}
+      />
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
